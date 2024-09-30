@@ -1,1 +1,175 @@
 
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Appointment Booking Chatbot</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f4f4f4;
+            color: #333;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+        }
+        #chat-container {
+            background: white;
+            max-width: 600px;
+            width: 100%;
+            border: 1px solid #ccc;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+        }
+        h1 {
+            text-align: center;
+            color: #007BFF;
+        }
+        #messages {
+            flex: 1;
+            max-height: 400px;
+            overflow-y: auto;
+            margin-bottom: 10px;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            background-color: #f9f9f9;
+        }
+        .message {
+            margin: 5px 0;
+            padding: 8px;
+            border-radius: 5px;
+            line-height: 1.5;
+        }
+        .user {
+            text-align: right;
+            background-color: #e1f5fe;
+            color: #0d47a1;
+            margin-left: 40px;
+        }
+        .bot {
+            text-align: left;
+            background-color: #c8e6c9;
+            color: #1b5e20;
+            margin-right: 40px;
+        }
+        input, button {
+            padding: 10px;
+            margin-top: 10px;
+            border: 1px solid #007BFF;
+            border-radius: 5px;
+            font-size: 16px;
+        }
+        button {
+            background-color: #007BFF;
+            color: white;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        input:focus {
+            border-color: #0056b3;
+            outline: none;
+        }
+    </style>
+</head>
+<body>
+
+<div id="chat-container">
+    <h1>Appointment Booking Chatbot</h1>
+    <div id="messages"></div>
+    <input type="text" id="user-input" placeholder="Enter your message..." />
+    <button id="send-button">Send</button>
+</div>
+
+<script>
+    const messagesContainer = document.getElementById('messages');
+    const userInput = document.getElementById('user-input');
+    const sendButton = document.getElementById('send-button');
+    
+    let userDetails = {};
+    let step = 0;
+
+    appendMessage("Hi, what's your name?", 'bot');
+
+    function appendMessage(content, sender) {
+        const messageDiv = document.createElement('div');
+        messageDiv.classList.add('message', sender);
+        messageDiv.textContent = content;
+        messagesContainer.appendChild(messageDiv);
+        messagesContainer.scrollTop = messagesContainer.scrollHeight; // Scroll to the bottom
+    }
+
+    function handleUserInput() {
+        const inputText = userInput.value.trim();
+        if (!inputText) return;
+        appendMessage(inputText, 'user');
+        userInput.value = '';
+
+        if (step === 0) {
+            userDetails.name = inputText;
+            step++;
+            appendMessage("Great! How old are you?", 'bot');
+        } else if (step === 1) {
+            userDetails.age = inputText;
+            step++;
+            appendMessage("What is your phone number?", 'bot');
+        } else if (step === 2) {
+            userDetails.phone = inputText;
+            step++;
+            appendMessage("What is your email address?", 'bot');
+        } else if (step === 3) {
+            userDetails.email = inputText;
+            appendMessage("Thank you! Let me check available slots for you...", 'bot');
+
+            fetch('/get_available_slots', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(userDetails)
+            })
+            .then(response => response.json())
+            .then(data => {
+                const slots = data.available_slots;
+                if (slots.length > 0) {
+                    let slotOptions = "Here are your available slots:\n";
+                    slots.forEach(slot => {
+                        slotOptions += `${slot.Book_date}: ${slot.time_start_end}\n`;
+                    });
+                    appendMessage(slotOptions, 'bot');
+                    appendMessage("Please select a date and time from the above.", 'bot');
+                    step++;
+                } else {
+                    appendMessage("Sorry, there are no available slots at the moment.", 'bot');
+                }
+            });
+        } else if (step === 4) {
+            const selectedSlot = inputText.split(': ');
+            userDetails.date = selectedSlot;
+            userDetails.time = selectedSlot[0].split(" ");
+            const [selectedDate, selectedTime] = selectedSlot[0].split(' '); // Adjust as needed
+            fetch('/submit_booking', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(userDetails)
+            })
+            .then(() => {
+                appendMessage("Your appointment has been successfully booked!", 'bot');
+            });
+        }
+    }
+
+    sendButton.addEventListener('click', handleUserInput);
+    userInput.addEventListener('keypress', (event) => {
+        if (event.key === 'Enter') handleUserInput();
+    });
+</script>
+
+</body>
+</html>
